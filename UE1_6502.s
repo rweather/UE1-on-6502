@@ -481,7 +481,7 @@ I_OEN:
 I_IOC:
         lda     #1
         sta     IOC
-        lda     #8
+        lda     #7                  ; BEL
         jsr     print_char
         jmp     instruction_loop
 ;
