@@ -510,11 +510,7 @@ I_SKZ:
 I_NOPF:
         cpx     #$0F
         bne     halt_program
-        lda     #<PROGRAM
-        sta     PC
-        lda     #>PROGRAM
-        sta     PC+1
-        jmp     instruction_loop
+        ; Fall through to the next subroutine.
 
 ;
 ; Rewind the tape to the start of the program.
@@ -684,8 +680,16 @@ assemble_line:
         bcs     load_next_line
         ora     TOKEN+8
 ;
+; If this is the "WRAP" / "NOPF IR7" instruction, then replace it
+; with "NOPF SR0" instead because "WRAP" is special.
+;
+        cmp     #OP_WRAP
+        bne     store_instruction
+        lda     #OP_NOPF
+;
 ; We now have an instruction.  Store it to the program and increment PC.
 ;
+store_instruction:
         ldy     #0
         sta     (PC),y
         inc     PC
@@ -694,10 +698,10 @@ assemble_line:
 assemble_next:
         lda     PC              ; Has the program overflowed?
         cmp     #<PROGEND
-        bne     assemble_next_2
+        bne     load_next_line
         lda     PC+1
         cmp     #>PROGEND
-        bne     assemble_next_2
+        bne     load_next_line
 ;
         ldy     #<program_too_big_msg
         lda     #>program_too_big_msg
@@ -706,9 +710,6 @@ assemble_next:
         sta     PROGRAM
         lda     #OP_WRAP
         sta     PROGRAM+1
-;
-assemble_next_2:
-        jmp     load_next_line
 ;
 ; Make sure that the program is terminated by a "WRAP" instruction to
 ; cause the tape to wrap around to the start when we run off the end.
@@ -743,6 +744,12 @@ not_empty:
         jmp     main_screen
 ;
 ; Lexical analysis.  Look up the current symbol on the input line.
+;
+; On entry, X is the offset into the insn_names table to start
+; searching from, and A is the number of names to search.
+;
+; On exit, A is the opcode or operand value (0..15) and carry is clear.
+; If the symbol was not found, carry will be set.
 ;
 lexer:
         sta     TEMP
@@ -1262,14 +1269,6 @@ wait_char:
         jsr     read_char
         bcc     wait_char
         rts
-
-;
-; Print a $00 or $80 flag in A.  Destroys A and X.  Preserves Y.
-;
-print_flag:
-        asl     a
-        rol     a
-        ; Fall through to the next subroutine.
 
 ;
 ; Print a single 0 or 1 bit in A.  Destroys A and X.  Preserves Y.
