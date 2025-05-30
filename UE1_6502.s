@@ -416,6 +416,7 @@ I_ONE:
         dex
         stx     CAR
 no_input:
+no_output:
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_NAND
@@ -453,7 +454,6 @@ check_store_address:
         bcs     store_to_output_register
 store_to_ram:
         sta     SR0,x
-no_output:
         jmp     instruction_store
 ;
         .org    HANDLERS+OP_STOC
