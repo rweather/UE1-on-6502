@@ -21,18 +21,42 @@
 ;
 
 ;
-; UE-1 emulator for Ben Eater's 6502 Breadboard Computer.
+; UE-1 emulator for Ben Eater's 6502 Breadboard Computer and Apple II.
 ;
-; Assemble using VASM as follows:
+; Assemble for Ben Eater's computer using VASM as follows:
 ;
-; vasm6502_oldstyle -dotdir -Fbin -o UE1_6502.bin UE1_6502.s
+; vasm6502_oldstyle -dotdir -Fbin -DEATER -o UE1_6502.bin UE1_6502.s
 ;
 ; Then program the EEPROM with the contents of "UE1-6502.bin".
+;
+; Assemble the Apple II version using VASM as follows:
+;
+; vasm6502_oldstyle -dotdir -Fbin -DAPPLE2 -DBRUN_HEADER -o UE1_APPLE2.bin UE1_6502.s
+;
+; The "UE1_APPLE2.bin" file contains a "BRUN" header, suitable for Apple DOS.
+; Remove the "-DBRUN_HEADER" if you just want the program binary.
 ;
 ; VASM can be obtained from here: http://sun.hasenbraten.de/vasm/
 ;
 
-        .org    $8000
+;
+; Position the program in memory.
+;
+    .ifdef EATER
+        .org    $8000           ; Start of ROM.
+    .else
+    .ifdef APPLE2
+    .ifdef BRUN_HEADER
+        .org    $1FFC           ; Put a Apple II DOS "BRUN" header on the front.
+        .dw     $2000           ; Starting address in memory.
+        .dw     VARS-$2000      ; Size of the program in bytes.
+    .else
+        .org    $2000           ; No header needed.
+    .endif
+    .else
+        .error  "Unknown platform - port needed"
+    .endif
+    .endif
 
 ;
 ; UE-1 opcodes, aligned in the high nibble.
@@ -91,6 +115,7 @@ OP_WRAP .equ    $FF
 ;
 ; Zero page locations.
 ;
+    .ifdef EATER
 TEMP    .equ    $10         ; Temporary 16-bit register.
 SERRD   .equ    $12         ; Serial RX buffer read pointer.
 SERWR   .equ    $13         ; Serial RX buffer write pointer.
@@ -134,7 +159,58 @@ IOC     .equ    $3B         ; Value of the IOC flag.
 RTN     .equ    $3C         ; Value of the RTN flag.
 PFLAGF  .equ    $3D         ; Value of the FLAGF flag in the previous loop.
 TOKEN   .equ    $40         ; Buffer to hold the next assembler token.
+    .endif
+    .ifdef APPLE2
+;
+; Need to move most of the state out to regular RAM because the zero
+; page on the Apple II is very full of variables for BASIC.
+;
+TEMP    .equ    $3C         ; Temporary 16-bit register.
+JMPPTR  .equ    $3E         ; Jump table pointer for executing opcodes.
+PC      .equ    $42         ; Program counter address.
+SAVEX   .equ    VARS+$10    ; Place to save X while reading a character.
+SAVEY   .equ    VARS+$11    ; Place to save Y while reading a character.
+FAST    .equ    VARS+$14    ; Non-zero for fast mode (no screen updates).
+STEP    .equ    VARS+$15    ; Non-zero for single-step mode.
+MARKER  .equ    VARS+$16    ; Cold start / warm start marker.
+SKP     .equ    VARS+$1C    ; Skip register.
+IEN     .equ    VARS+$1D    ; Input enable register.
+OEN     .equ    VARS+$1E    ; Output enable register.
+CAR     .equ    VARS+$1F    ; Carry register.
+SR0     .equ    VARS+$20    ; Scratch register bit 0.
+SR1     .equ    VARS+$21    ; Scratch register bit 1.
+SR2     .equ    VARS+$22    ; Scratch register bit 2.
+SR3     .equ    VARS+$23    ; Scratch register bit 3.
+SR4     .equ    VARS+$24    ; Scratch register bit 4.
+SR5     .equ    VARS+$25    ; Scratch register bit 5.
+SR6     .equ    VARS+$26    ; Scratch register bit 6.
+SR7     .equ    VARS+$27    ; Scratch register bit 7.
+RR      .equ    VARS+$28    ; Result register.
+IR1     .equ    VARS+$29    ; Input register bit 1.
+IR2     .equ    VARS+$2A    ; Input register bit 2.
+IR3     .equ    VARS+$2B    ; Input register bit 3.
+IR4     .equ    VARS+$2C    ; Input register bit 4.
+IR5     .equ    VARS+$2D    ; Input register bit 5.
+IR6     .equ    VARS+$2E    ; Input register bit 6.
+IR7     .equ    VARS+$2F    ; Input register bit 7.
+OR0     .equ    VARS+$30    ; Output register bit 0.
+OR1     .equ    VARS+$31    ; Output register bit 1.
+OR2     .equ    VARS+$32    ; Output register bit 2.
+OR3     .equ    VARS+$33    ; Output register bit 3.
+OR4     .equ    VARS+$34    ; Output register bit 4.
+OR5     .equ    VARS+$35    ; Output register bit 5.
+OR6     .equ    VARS+$36    ; Output register bit 6.
+OR7     .equ    VARS+$37    ; Output register bit 7.
+FLAG0   .equ    VARS+$38    ; Value of the FLAG0 flag.
+FLAGF   .equ    VARS+$39    ; Value of the FLAGF flag.
+WRT     .equ    VARS+$3A    ; Value of the WRT flag.
+IOC     .equ    VARS+$3B    ; Value of the IOC flag.
+RTN     .equ    VARS+$3C    ; Value of the RTN flag.
+PFLAGF  .equ    VARS+$3D    ; Value of the FLAGF flag in the previous loop.
+TOKEN   .equ    VARS+$40    ; Buffer to hold the next assembler token.
+    .endif
 
+    .ifdef EATER
 ;
 ; I/O ports on the 6551 Asynchronous Communications Interface Adapter
 ; https://www.westerndesigncenter.com/wdc/documentation/w65c51n.pdf
@@ -173,15 +249,24 @@ ACIA_TIC1           .equ    %00001000
 ACIA_TIC0           .equ    %00000100
 ACIA_IRD            .equ    %00000010
 ACIA_DTR            .equ    %00000001
+    .endif
 
 ;
 ; Other definitions.
 ;
+    .ifdef EATER
 KEYBUF  .equ    $0200       ; Keyboard input buffer.
 SERBUF  .equ    $0300       ; Serial RX buffer.
 PROGRAM .equ    $0400       ; Start of tape program storage in RAM.
 PROGEND .equ    $3FFF       ; End of tape program storage in RAM.
+    .endif
+    .ifdef APPLE2
+KEYBUF  .equ    $0200       ; Keyboard input buffer.
+PROGRAM .equ    $3000       ; Start of tape program storage in RAM.
+PROGEND .equ    $7FFF       ; End of tape program storage in RAM.
+    .endif
 
+    .ifdef EATER
 ;
 ; Reset vector for the ROM.
 ;
@@ -200,6 +285,7 @@ reset_delay:
         bne     reset_delay
         dey
         bne     reset_delay
+    .endif
 ;
 ; Is this a cold or a warm start?  On a cold start we need to
 ; initialise the machine and set the program to empty.
@@ -263,6 +349,7 @@ warm_start:
         sty     STEP            ; Disable single-step mode.
         lda     #1              ; Start in the halt state.
         sta     FLAGF
+    .ifdef EATER
 ;
 ; Initialise the ACIA.
 ;
@@ -277,6 +364,7 @@ warm_start:
         sty     SERRD           ; Clear the read/write buffer pointers.
         sty     SERWR
         cli                     ; Re-enable interrupts.
+    .endif
 
 ;
 ; Print the main screen.
@@ -376,7 +464,11 @@ pc_incremented:
 ; from the designated memory address, that X is the memory address,
 ; and that Y is set to zero.
 ;
+    .ifdef EATER
 HANDLERS .equ   $8100
+    .else
+HANDLERS .equ   $2100
+    .endif
         .org    HANDLERS
 I_NOP0:
         lda     #1
@@ -397,6 +489,7 @@ I_ADD:
         clc
         adc     RR
         adc     CAR
+do_finish_add_or_sub:
         jmp     finish_add_or_sub
 ;
         .org    HANDLERS+OP_SUB
@@ -407,7 +500,7 @@ I_SUB:
         clc
         adc     RR
         adc     CAR
-        jmp     finish_add_or_sub
+        bcc     do_finish_add_or_sub
 ;
         .org    HANDLERS+OP_ONE
 I_ONE:
@@ -449,12 +542,7 @@ I_STO:
         ldy     OEN
         beq     no_output
         lda     RR
-check_store_address:
-        cpx     #8
-        bcs     store_to_output_register
-store_to_ram:
-        sta     SR0,x
-        jmp     instruction_store
+        jmp     finish_store
 ;
         .org    HANDLERS+OP_STOC
 I_STOC:
@@ -462,10 +550,7 @@ I_STOC:
         beq     no_output
         lda     RR
         eor     #1
-        bpl     check_store_address ; Unconditional jump.
-store_to_output_register:
-        sta     OR0-8,x
-        jmp     instruction_store
+        jmp     finish_store
 ;
         .org    HANDLERS+OP_IEN
 I_IEN:
@@ -521,6 +606,7 @@ rewind_tape:
         lda     #>PROGRAM
         sta     PC+1
         jmp     instruction_loop
+
 ;
 ; Toggle fast mode.  In fast mode we don't print instructions or the
 ; machine state.  Run instructions as fast as humanly/machinely possible.
@@ -553,6 +639,14 @@ handle_command:
         beq     single_step
         cmp     #'L'            ; Load program?
         beq     load_program
+    .ifdef APPLE2
+        cmp     #$1B            ; ESC to exit back to BASIC.
+        bne     check_for_input
+        lda     #$0C            ; Clear the screen.
+        jsr     print_char
+        jmp     $E003           ; Warm start of BASIC.
+    .endif
+check_for_input:
         cmp     #'1'            ; Toggle Input 1-7?
         bcc     not_a_command
         cmp     #'8'
@@ -839,6 +933,18 @@ finish_add_or_sub:
         jmp     instruction_loop
 
 ;
+; Finish off a "STO" or "STOC" instruction.
+;
+finish_store:
+        cpx     #8
+        bcs     store_to_output_register
+        sta     SR0,x
+        jmp     instruction_store
+store_to_output_register:
+        sta     OR0-8,x
+        jmp     instruction_store
+
+;
 ; Clear the CPU flags.  Side-effect is to set Y to zero.
 ;
 clear_flags:
@@ -967,6 +1073,11 @@ print_machine_state:
 ;
 ; Disassemble and print the next instruction.
 ;
+    .ifdef APPLE2
+        ldy     #<goto_instruction
+        lda     #>goto_instruction
+        jsr     print_string
+    .endif
         ldy     #0
         lda     (PC),y
         pha
@@ -1055,6 +1166,52 @@ print_halted:
 no_run_halt_change:
         rts
 
+    .ifdef APPLE2
+
+;
+; Main screen layout for the emulator.
+;
+screen_layout:
+        ;       "0123456789012345678901234567890123456789"
+        .db     $0C                             ; Clear the screen.
+        .db     $0D
+        .db     "UE1 EMULATOR FOR 6502",$0D
+        .db     $0D
+        .db     "INSTRUCTION: --------",$0D
+        .db     $0D
+        .db     "CR IOBWSRFH 7  SR  0 7  OR  0 7 IR  1",$0D
+        .db     "-- -------- -------- -------- -------",$0D
+        .db     $0D
+        .db     "LEGEND:",$0D
+        .db     " C = CAR, R = RR, I = IEN, O = OEN,",$0D
+        .db     " B = IOC/BEL, W = WRT, S = SKP, R = RTN," ;,$0D
+        .db     " F = FLAG0, H = FLAGF/HLT, SR = SCRATCH",$0D
+        .db     " OR = OUTPUT, IR = INPUT",$0D
+        .db     $0D
+        .db     "COMMANDS:",$0D
+        .db     " H = HALT, G = GO, S = SINGLE STEP,",$0D
+        .db     " 1-7 = TOGGLE INPUT, L = LOAD, F = FAST",$0D
+        .db     " R = REWIND TAPE, ESC = QUIT",$0D
+        .db     0
+;
+; Strings for moving about the screen and printing things.
+;
+goto_machine_state:
+        .db     $1F,$30,$36,0       ; Update the machine state.
+goto_instruction:
+        .db     $1F,$3D,$33,0       ; Go to the instruction display.
+goto_resting:
+        .db     $1F,$30,$30,0       ; Move the cursor to its resting position.
+running_state:
+        .db     $1F,$46,$33,"RUNNING",0
+halted_state:
+        .db     $1F,$46,$33,"HALTED ",0
+erase_state:
+        .db     $1F,$30,$36,"-- -------- -------- -------- -------"
+        .db     $1F,$3D,$33,"--------",0
+
+    .else
+
 ;
 ; Main screen layout for the emulator.
 ;
@@ -1089,15 +1246,25 @@ halted_state:
         .db     $1B,"[5;48H",$1B,"[31;1mHalted ",$1B,"[0m",$1B,"[32m",0
 erase_state:
         .db     $1B,"[5;1H-- -------- -------- -------- ------- --------",0
+
+    .endif
 ;
 ; Instructions for loading a program into memory.
 ;
 load_instructions:
+    .ifdef APPLE2
+        .db     $0C                 ; Clear the screen.
+        .db     "ENTER THE ASSEMBLY CODE FOR THE PROGRAM",$0D
+        .db     "ONE LINE AT A TIME.  ENTER '.' ON A",$0D
+        .db     "LINE OF ITS OWN TO END THE PROGRAM.",$0D
+        .db     $0D,0
+    .else
         .db     $1B,"[H",$1B,"[0m",$1B,"[J"     ; Clear the screen.
         .db     $0D,$0A
         .db     "Enter the assembly code for the program one line at a time.",$0D,$0A
         .db     "Enter '.' on a line of its own to end the loading process.",$0D,$0A
         .db     $0D,$0A,0
+    .endif
 
 ;
 ; Instruction and operand names for the assembler and disassembler.
@@ -1234,6 +1401,14 @@ end_read_line:
         jmp     print_char
 
 ;
+; Print a single 0 or 1 bit in A.  Destroys A and X.  Preserves Y.
+;
+print_bit:
+        ora     #$30
+        jmp     print_char
+
+    .ifdef EATER
+;
 ; Read a character from the serial port.  Sets carry if a character
 ; was received or clears carry if no character is available at present.
 ; Returns the character in A.  Destroys X.  Preserves Y.
@@ -1269,13 +1444,6 @@ wait_char:
         jsr     read_char
         bcc     wait_char
         rts
-
-;
-; Print a single 0 or 1 bit in A.  Destroys A and X.  Preserves Y.
-;
-print_bit:
-        ora     #$30
-        ; Fall through to the next subroutine.
 
 ;
 ; Print a character to the serial port.  Destroys X.  Preserves A and Y.
@@ -1350,3 +1518,101 @@ end_irq:
         .dw     nmi_handler
         .dw     reset
         .dw     irq_handler
+    .endif ; EATER
+
+    .ifdef APPLE2
+
+;
+; Memory addresses and useful ROM routines for the Apple II.
+;
+CHORZ   .equ    $24             ; Horizontal offset of the cursor (0-39).
+CVERT   .equ    $25             ; Veritical offset of the cursor (0-23).
+KEYBRD  .equ    $C000           ; Read keyboard data.
+KEYSTR  .equ    $C010           ; Clear keyboard strobe.
+MRDKEY  .equ    $FD0C           ; Read a key from the input device.
+MCOUT   .equ    $FDED           ; Write a character to the screen.
+MVTAB   .equ    $FC22           ; Recalculate the screen address.
+
+;
+; Read a character from the keyboard.  Sets carry if a character
+; was received or clears carry if no character is available at present.
+; Returns the character in A.  Preserves X and Y.
+;
+read_char:
+        lda     KEYBRD          ; Do we have a key?
+        bpl     no_read_char
+        bit     KEYSTR          ; Key got, clear the keyboard strobe.
+        and     #$7F            ; Convert from High ASCII into regular ASCII.
+        sec
+        rts
+no_read_char:
+        lda     #0
+        clc
+        rts
+
+;
+; Wait for a character from the keyboard, displaying the cursor.
+;
+wait_char:
+        stx     SAVEX
+        sty     SAVEY
+        jsr     MRDKEY
+        and     #$7F            ; Convert from High ASCII into regular ASCII.
+        ldy     SAVEY
+        ldx     SAVEX
+no_print_char:
+        rts
+
+;
+; Print a character to the screen.  Preserves A, X, and Y.
+;
+print_char:
+        cmp     #$0A            ; Eat LF, only need the CR.
+        beq     no_print_char
+        pha
+        ora     #$80            ; Convert from regular ASCII into High ASCII.
+        jsr     MCOUT
+        pla
+        rts
+
+;
+; Print a NUL-terminated string to the screen.  A:Y points to the
+; string on entry.  Destroys A and Y.
+;
+print_string:
+        sty     TEMP
+        sta     TEMP+1
+        ldy     #0
+print_string_loop:
+        lda     (TEMP),y
+        beq     print_string_done
+        cmp     #$1F
+        beq     move_cursor
+        jsr     print_char
+        iny
+        bne     print_string_loop
+        inc     TEMP+1
+        jmp     print_string_loop
+print_string_done:
+        rts
+move_cursor:
+        iny
+        lda     (TEMP),y
+        sec
+        sbc     #'0'
+        sta     CHORZ               ; Set the horizontal screen position.
+        iny
+        lda     (TEMP),y
+        sec
+        sbc     #'0'
+        sta     CVERT               ; Set the vertical screen position.
+        jsr     MVTAB
+        iny
+        jmp     print_string_loop
+
+;
+; Start of program variable space in RAM.
+;
+VARS    .equ    *
+
+    .endif ; APPLE2

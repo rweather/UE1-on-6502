@@ -3,7 +3,11 @@ UE1 Emulator for 6502
 
 This is an emulator for the UE1 vacuum tube computer from
 [David Lovett / Usagi Electric](https://github.com/Nakazoto/UEVTC) that
-runs on [Ben Eater's 6502 Breadboard Computer](https://eater.net/6502).
+runs on [Ben Eater's 6502 Breadboard Computer](https://eater.net/6502)
+or Apple II (or clones).
+
+Most of the instructions below pertain to the Ben Eater version.
+See the end of this file for information on the Apple II version.
 
 ## Building and Running
 
@@ -86,6 +90,36 @@ be necessary to also increase the 6502's CPU clock to 2MHz or more.
 * $0400 - $3FFF : Storage for the program tape (max 15k, or about 128 feet of physical tape).
 * $5000 - $5003 : ACIA registers for the serial port.
 * $8000 - $FFFF : Emulator code in EEPROM (only about 2.75k is in use).
+
+## Apple II and Clones Version
+
+I have a [Dick Smith CAT](https://github.com/rweather/cat-technical-information),
+a clone of the Apple IIe that was popular in Australia during the 1980's.
+It was my first computer!
+
+I ported the emulator to the CAT.  The port should also work on real
+Apple II's and other clones but I have not tested this yet.
+
+The "UE1\_APPLE2.bin" file is a "BRUN" executable suitable for use on
+Apple DOS or compatible systems.  May not work with Apple ProDOS.
+Arrange to somehow copy this file to an Apple II disk image and
+mount the disk on your Apple II.
+
+Because I don't have a working disk controller, I have another method to load
+programs onto the Dick Smith CAT using a [[ROM Cartridge](https://github.com/rweather/cat-technical-information/blob/main/ROMCart.md)
+that plugs into the RS-232 expansion connector on the back of the CAT.
+The "UE1\_DSECAT.bin" file is designed for the ROM cartridge; it is
+otherwise exactly the same code as the Apple II version.
+
+The Apple II and CAT versions are loaded into memory at $2000.  Tape
+images are stored between $3000 and $7FFF in RAM (max 12K).
+
+Here is the emulator running on my CAT just after it finished running
+"UE1FIBO".  The emulator runs about twice as fast as on Ben Eater's
+6502 Breadboard Computer because it doesn't have to wait for the
+serial port to catch up.
+
+<img src="photos/dsecat-fibo.jpg"/>
 
 ## License
 
