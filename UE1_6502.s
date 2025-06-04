@@ -452,7 +452,10 @@ pc_incremented:
         pla
         and     #$F0            ; Extract the opcode bits into A
         sta     JMPPTR          ; and construct a jump address.
+        lda     IEN             ; If IEN is zero, force the operand to zero.
+        beq     jump_to_instruction
         lda     SR0,x           ; Load the input memory operand into A.
+jump_to_instruction:
         jmp     (JMPPTR)        ; Jump to the instruction handler.
 
 ;
@@ -477,30 +480,23 @@ I_NOP0:
 ;
         .org    HANDLERS+OP_LD
 I_LD:
-        ldx     IEN
-        beq     no_input
         sta     RR
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_ADD
 I_ADD:
-        ldx     IEN
-        beq     no_input
         clc
         adc     RR
         adc     CAR
-do_finish_add_or_sub:
         jmp     finish_add_or_sub
 ;
         .org    HANDLERS+OP_SUB
 I_SUB:
-        ldx     IEN
-        beq     no_input
         eor     #1              ; Invert the incoming value.
         clc
         adc     RR
         adc     CAR
-        bcc     do_finish_add_or_sub
+        jmp     finish_add_or_sub
 ;
         .org    HANDLERS+OP_ONE
 I_ONE:
@@ -508,14 +504,10 @@ I_ONE:
         stx     RR
         dex
         stx     CAR
-no_input:
-no_output:
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_NAND
 I_NAND:
-        ldx     IEN
-        beq     no_input
         and     RR
         eor     #1
         sta     RR
@@ -523,18 +515,15 @@ I_NAND:
 ;
         .org    HANDLERS+OP_OR
 I_OR:
-        ldx     IEN
-        beq     no_input
         ora     RR
         sta     RR
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_XOR
 I_XOR:
-        ldx     IEN
-        beq     no_input
         eor     RR
         sta     RR
+no_output:
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_STO
@@ -554,11 +543,13 @@ I_STOC:
 ;
         .org    HANDLERS+OP_IEN
 I_IEN:
+        lda     SR0,x           ; IEN ignores the state of IEN, reload operand.
         sta     IEN
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_OEN
 I_OEN:
+        lda     SR0,x           ; OEN ignores the state of IEN, reload operand.
         sta     OEN
         jmp     instruction_loop
 ;
