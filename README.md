@@ -40,6 +40,20 @@ slow down the host computer, but there is a bug in the ACIA chip that
 can cause it to appear to lose characters when RTS is off.  The characters
 won't actually be lost, but they won't echo properly.
 
+## DIAPER
+
+The "diaper" directory contains a UE1 program in ASM and BIN form for
+testing all of the functionality of the UE1 except for inputs and outputs,
+which require human intervention.
+
+The program is named after the Bendix G-15 "DIAPER" program, which means
+"Diagnostic Program for Easy Repair" and fills a similar function.
+
+The 6502 emulator contains a copy of DIAPER built in.  Press 'D' followed
+by 'G' to run the tests.  If all goes well, it will halt at the end of
+the program with all outputs set to 1.  If something goes wrong, it will
+halt with the number of the failing test displayed on the outputs.
+
 ## Control Keys
 
 * H - Halt the machine.

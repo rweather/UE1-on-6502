@@ -452,10 +452,7 @@ pc_incremented:
         pla
         and     #$F0            ; Extract the opcode bits into A
         sta     JMPPTR          ; and construct a jump address.
-        lda     IEN             ; If IEN is zero, force the operand to zero.
-        beq     jump_to_instruction
         lda     SR0,x           ; Load the input memory operand into A.
-jump_to_instruction:
         jmp     (JMPPTR)        ; Jump to the instruction handler.
 
 ;
@@ -480,11 +477,13 @@ I_NOP0:
 ;
         .org    HANDLERS+OP_LD
 I_LD:
+        and     IEN             ; If IEN is zero, force the operand to zero.
         sta     RR
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_ADD
 I_ADD:
+        and     IEN             ; If IEN is zero, force the operand to zero.
         clc
         adc     RR
         adc     CAR
@@ -492,6 +491,7 @@ I_ADD:
 ;
         .org    HANDLERS+OP_SUB
 I_SUB:
+        and     IEN             ; If IEN is zero, force the operand to zero.
         eor     #1              ; Invert the incoming value.
         clc
         adc     RR
@@ -508,6 +508,7 @@ I_ONE:
 ;
         .org    HANDLERS+OP_NAND
 I_NAND:
+        and     IEN             ; If IEN is zero, force the operand to zero.
         and     RR
         eor     #1
         sta     RR
@@ -515,12 +516,14 @@ I_NAND:
 ;
         .org    HANDLERS+OP_OR
 I_OR:
+        and     IEN             ; If IEN is zero, force the operand to zero.
         ora     RR
         sta     RR
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_XOR
 I_XOR:
+        and     IEN             ; If IEN is zero, force the operand to zero.
         eor     RR
         sta     RR
 no_output:
@@ -543,13 +546,11 @@ I_STOC:
 ;
         .org    HANDLERS+OP_IEN
 I_IEN:
-        lda     SR0,x           ; IEN ignores the state of IEN, reload operand.
         sta     IEN
         jmp     instruction_loop
 ;
         .org    HANDLERS+OP_OEN
 I_OEN:
-        lda     SR0,x           ; OEN ignores the state of IEN, reload operand.
         sta     OEN
         jmp     instruction_loop
 ;
@@ -596,6 +597,10 @@ rewind_tape:
         sta     PC
         lda     #>PROGRAM
         sta     PC+1
+        lda     FLAGF
+        beq     rewind_tape_2
+        jsr     print_halted        ; Update halt address on screen.
+rewind_tape_2:
         jmp     instruction_loop
 
 ;
@@ -629,7 +634,11 @@ handle_command:
         cmp     #'S'            ; Single Step?
         beq     single_step
         cmp     #'L'            ; Load program?
-        beq     load_program
+        bne     handle_command_2
+        jmp     load_program
+handle_command_2:
+        cmp     #'D'            ; Load DIAPER program?
+        beq     load_diaper
     .ifdef APPLE2
         cmp     #$1B            ; ESC to exit back to BASIC.
         bne     check_for_input
@@ -659,9 +668,7 @@ halt_program:
         bne     already_halted
         lda     #1
         sta     FLAGF
-        ldy     #<halted_state
-        lda     #>halted_state
-        jsr     print_string
+        jsr     print_halted
         ldy     #<goto_resting
         lda     #>goto_resting
         jsr     print_string
@@ -701,6 +708,33 @@ single_step:
         lda     #>goto_resting
         jsr     print_string
         jmp     continue_execution
+
+;
+; Load the DIAPER program into memory.
+;
+load_diaper:
+        lda     #<diaper_program
+        sta     TEMP
+        lda     #>diaper_program
+        sta     TEMP+1
+        lda     #<PROGRAM
+        sta     PC
+        lda     #>PROGRAM
+        sta     PC+1
+        ldy     #0
+copy_diaper_program:
+        lda     (TEMP),y
+        sta     (PC),y
+        cmp     #OP_WRAP
+        beq     load_diaper_done
+        iny
+        bne     copy_diaper_program
+        inc     TEMP+1
+        inc     PC+1
+        bne     copy_diaper_program
+load_diaper_done:
+        jmp     rewind_tape
+
 ;
 ; Load a new program into memory.
 ;
@@ -1153,7 +1187,24 @@ print_running_or_halted:
 print_halted:
         ldy     #<halted_state
         lda     #>halted_state
-        jmp     print_string
+        jsr     print_string
+    .ifndef APPLE2
+;
+; Print the offset in the program where the halt happened.
+;
+        lda     PC
+        sec
+        sbc     #<PROGRAM
+        pha
+        lda     PC+1
+        sbc     #>PROGRAM
+        jsr     print_byte
+        pla
+        jsr     print_byte
+        ldy     #<halted_state_end
+        lda     #>halted_state_end
+        jsr     print_string
+    .endif
 no_run_halt_change:
         rts
 
@@ -1180,9 +1231,9 @@ screen_layout:
         .db     " OR = OUTPUT, IR = INPUT",$0D
         .db     $0D
         .db     "COMMANDS:",$0D
-        .db     " H = HALT, G = GO, S = SINGLE STEP,",$0D
+        .db     " H = HALT, G = GO, S = SINGLE STEP",$0D
         .db     " 1-7 = TOGGLE INPUT, L = LOAD, F = FAST",$0D
-        .db     " R = REWIND TAPE, ESC = QUIT",$0D
+        .db     " R = REWIND TAPE, D = DIAPER, ESC = QUIT" ;,$0D
         .db     0
 ;
 ; Strings for moving about the screen and printing things.
@@ -1222,6 +1273,7 @@ screen_layout:
         .db     $1B,"[33mCommands:",$0D,$0A
         .db     $1B,"[0mH = Halt, G = Go, S = Single Step, 1-7 = Toggle Input",$0D,$0A
         .db     "L = Load Program, R = Rewind Tape, F = Toggle Fast Execution",$0D,$0A
+        .db     "D = Load DIAPER Program",$0D,$0A
         .db     $1B,"[32m"
         .db     0
 ;
@@ -1232,9 +1284,11 @@ goto_machine_state:
 goto_resting:
         .db     $1B,"[H",0          ; Move the cursor to its resting position.
 running_state:
-        .db     $1B,"[5;48H",$1B,"[33;1mRunning",$1B,"[0m",$1B,"[32m",0
+        .db     $1B,"[5;48H",$1B,"[33;1mRunning       ",$1B,"[0m",$1B,"[32m",0
 halted_state:
-        .db     $1B,"[5;48H",$1B,"[31;1mHalted ",$1B,"[0m",$1B,"[32m",0
+        .db     $1B,"[5;48H",$1B,"[31;1mHalted at ",0
+halted_state_end:
+        .db     $1B,"[0m",$1B,"[32m",0
 erase_state:
         .db     $1B,"[5;1H-- -------- -------- -------- ------- --------",0
 
@@ -1346,6 +1400,13 @@ default_program:
 default_program_end:
 
 ;
+; DIAPER test program.
+;
+diaper_program:
+        .include "UE1_DIAPER1.s"
+        .db OP_WRAP
+
+;
 ; Read a line of text into KEYBUF, allowing some basic backspacing and editing.
 ;
 read_line:
@@ -1396,6 +1457,27 @@ end_read_line:
 ;
 print_bit:
         ora     #$30
+        jmp     print_char
+
+;
+; Print the byte in A in hexadecimal.
+;
+print_byte:
+        pha
+        lsr     a
+        lsr     a
+        lsr     a
+        lsr     a
+        jsr     print_nibble
+        pla
+print_nibble:
+        and     #$0F
+        clc
+        adc     #$30
+        cmp     #$3A
+        bcc     print_nibble_done
+        adc     #6
+print_nibble_done:
         jmp     print_char
 
     .ifdef EATER
