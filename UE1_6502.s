@@ -637,8 +637,12 @@ handle_command:
         bne     handle_command_2
         jmp     load_program
 handle_command_2:
-        cmp     #'D'            ; Load DIAPER program?
-        beq     load_diaper
+        cmp     #'D'            ; Load DIAPER1 program?
+        beq     load_diaper1
+        cmp     #'E'            ; Load DIAPER2 program?
+        bne     handle_command_3
+        jmp     load_diaper2
+handle_command_3:
     .ifdef APPLE2
         cmp     #$1B            ; ESC to exit back to BASIC.
         bne     check_for_input
@@ -710,30 +714,41 @@ single_step:
         jmp     continue_execution
 
 ;
-; Load the DIAPER program into memory.
+; Load the DIAPER1 program into memory.
 ;
-load_diaper:
-        lda     #<diaper_program
+load_diaper1:
+        lda     #<diaper1_program
         sta     TEMP
-        lda     #>diaper_program
+        lda     #>diaper1_program
         sta     TEMP+1
+load_diaper:
         lda     #<PROGRAM
         sta     PC
         lda     #>PROGRAM
         sta     PC+1
         ldy     #0
-copy_diaper_program:
+copy_diaper1_program:
         lda     (TEMP),y
         sta     (PC),y
         cmp     #OP_WRAP
-        beq     load_diaper_done
+        beq     load_diaper1_done
         iny
-        bne     copy_diaper_program
+        bne     copy_diaper1_program
         inc     TEMP+1
         inc     PC+1
-        bne     copy_diaper_program
-load_diaper_done:
+        bne     copy_diaper1_program
+load_diaper1_done:
         jmp     rewind_tape
+
+;
+; Load the DIAPER2 program into memory.
+;
+load_diaper2:
+        lda     #<diaper2_program
+        sta     TEMP
+        lda     #>diaper2_program
+        sta     TEMP+1
+        jmp     load_diaper
 
 ;
 ; Load a new program into memory.
@@ -1273,7 +1288,7 @@ screen_layout:
         .db     $1B,"[33mCommands:",$0D,$0A
         .db     $1B,"[0mH = Halt, G = Go, S = Single Step, 1-7 = Toggle Input",$0D,$0A
         .db     "L = Load Program, R = Rewind Tape, F = Toggle Fast Execution",$0D,$0A
-        .db     "D = Load DIAPER Program",$0D,$0A
+        .db     "D = Load DIAPER1 Program, E = Load DIAPER2 Program",$0D,$0A
         .db     $1B,"[32m"
         .db     0
 ;
@@ -1400,10 +1415,17 @@ default_program:
 default_program_end:
 
 ;
-; DIAPER test program.
+; DIAPER1 test program.
 ;
-diaper_program:
+diaper1_program:
         .include "UE1_DIAPER1.s"
+        .db OP_WRAP
+
+;
+; DIAPER2 test program.
+;
+diaper2_program:
+        .include "UE1_DIAPER2.s"
         .db OP_WRAP
 
 ;
