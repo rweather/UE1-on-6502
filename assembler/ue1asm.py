@@ -56,11 +56,16 @@ operands = {
     'OR7': 15
 }
 
+histogram = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+instruction_count = 0
+
 # Assemble a line of UE1 assembly code.
 def assemble_line(outfile,address,num,line):
     global opcodes
     global operands
     global listing
+    global histogram
+    global instruction_count
 
     # Split out the opcode and operand names.
     if len(line) == 0 or line[0] == ';':
@@ -78,7 +83,14 @@ def assemble_line(outfile,address,num,line):
     outfile.write(struct.pack('B', val))
     if listing:
         print("%04X: %02X        %-8d%s" % (address, val, num, sline))
+    histogram[int(val / 16)] = histogram[int(val / 16)] + 1
+    instruction_count = instruction_count + 1
     return True
+
+# Print histogram details for an instruction.
+def print_histogram(name, count):
+    global instruction_count
+    print("%-5s: %5d, %5.2f%%" % (name, count, 100 * count / instruction_count))
 
 # Check that we have the needed command-line options.
 if len(sys.argv) < 3:
@@ -98,3 +110,23 @@ with open(sys.argv[2], 'wb') as outfile:
             elif listing:
                 print("                %-8d%s" % (num, sline))
             num = num + 1
+
+# Print the histogram of instruction usage.
+if instruction_count != 0:
+    print_histogram('NOP0', histogram[0])
+    print_histogram('LD', histogram[1])
+    print_histogram('ADD', histogram[2])
+    print_histogram('SUB', histogram[3])
+    print_histogram('ONE', histogram[4])
+    print_histogram('NAND', histogram[5])
+    print_histogram('OR', histogram[6])
+    print_histogram('XOR', histogram[7])
+    print_histogram('STO', histogram[8])
+    print_histogram('STOC', histogram[9])
+    print_histogram('IEN', histogram[10])
+    print_histogram('OEN', histogram[11])
+    print_histogram('IOC', histogram[12])
+    print_histogram('RTN', histogram[13])
+    print_histogram('SKZ', histogram[14])
+    print_histogram('NOPF', histogram[15])
+    print("Total: %5d" % instruction_count)
